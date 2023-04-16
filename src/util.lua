@@ -22,7 +22,7 @@ end
 function M.text(t)
 	return setmetatable(t, {
 		__index = function(_, key)
-			error(string.format("text object '%s' isn't defined", key))
+			return key
 		end
 	})
 end

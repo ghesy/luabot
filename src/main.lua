@@ -1,14 +1,13 @@
 local M = {}
+local pl = require('pl.import_into')()
 
-local config, onmessage, dopage -- forward declarations
+-- forward declarations
+local onmessage, dopage, savedata, loaddata, isfile
+local config = {}
 
-local states = {} -- states of open chats
-function M.getdata()
-	return states
-end
-function M.setdata(data)
-	states = data
-end
+-- states of open chats
+local states = {}
+local states_old = {}
 
 function M.sendmsg(s, text)
 	config.bot.send_message(s.chat_id, text)
@@ -18,7 +17,6 @@ function M.sendmd(s, text)
 	config.bot.send_message(s.chat_id, text, 'Markdown')
 end
 
-
 function M.run(t)
 	config.bot = require('telegram-bot-lua.core').configure(t.token)
 	config.bot.on_message = onmessage
@@ -26,11 +24,19 @@ function M.run(t)
 	config.pages = t.pages
 	local offset = 0
 	local initialized = false
+	if t.datafile then
+		loaddata(t.datafile)
+	end
 	while true do
+		if t.datafile then
+			savedata(t.datafile)
+		end
 		if type(t.periodic) == 'function' then
 			t.periodic()
 		end
-		config.bot.get_updates(1, -1, 100, nil, nil)
+		if not initialized then
+			config.bot.get_updates(1, -1, 100, nil, nil)
+		end
 		local updates = config.bot.get_updates(1, offset, 100, nil, nil)
 		if updates and type(updates) == 'table' and updates.result then
 			for _, u in pairs(updates.result) do
@@ -51,10 +57,12 @@ function onmessage(msg)
 		states[msg.chat.id] = {}
 	end
 	local s = states[msg.chat.id]
+	s.last_msg_time = os.time(os.date('!*t'))
 	if start or msg.text == '/start' then
 		s.chat_id = msg.chat.id
 		s.page = 'start'
-		s.vars = {}
+	elseif msg.text:lower() == '/cancel' and s.main_page then
+		s.page = s.main_page
 		s.input = {}
 		s.input_num = 1
 		s.last_input = nil
@@ -67,6 +75,17 @@ function onmessage(msg)
 end
 
 function dopage(s)
+	if s.page == 'start' then
+		s.main_page = nil
+		s.vars  = {} -- vars; cleared on start and main_page
+		s.pvars = {} -- persistent vars; cleared only on start
+		s.input = {}
+		s.input_num = 1
+		s.last_input = nil
+	elseif s.page == s.main_page then
+		s.vars = {}
+	end
+
 	local p = config.pages[s.page]
 
 	if p.print then
@@ -77,8 +96,10 @@ function dopage(s)
 		local go
 		go = type(p.go) == 'function' and p.go(s) or p.go
 		go = type(go)   == 'function' and go(s)   or go
-		if config.pages[go] == nil then
-			sendmsg(s, config.text.page_nonexistent .. go)
+		if type(go) == 'function' then
+			s.page = 'start' -- this is an error case, so go back to start
+		elseif config.pages[go] == nil then
+			M.sendmsg(s, config.text.page_nonexistent .. go)
 		else
 			s.page = go
 		end
@@ -97,12 +118,13 @@ function dopage(s)
 		local msg = i.prompt
 		if choices then
 			for _, v in ipairs(i.type) do
-				msg = (msg and msg .. '\n\n' or '')
-					.. (v.separator and '======== ' or '/')
+				msg = (msg and msg .. '\n' or '')
+					.. (v.separator and '===== ' or '/')
 					.. v.name
+					.. (v.separator and ' =====' or '')
 			end
 		end
-		sendmsg(s, msg)
+		M.sendmsg(s, msg)
 		return
 	end
 
@@ -113,9 +135,9 @@ function dopage(s)
 		s.input[i.var] = tonumber(s.last_input)
 		s.input_num = s.input_num + 1
 	elseif free and i.type == 'number' then
-		sendmsg(s, config.text.invalid_answer_expected_number)
+		M.sendmsg(s, config.text.invalid_answer_expected_number)
 	elseif free then
-		sendmsg(s, config.text.invalid_answer)
+		M.sendmsg(s, config.text.invalid_answer)
 	elseif choices then
 		local match = nil
 		for _, v in ipairs(i.type) do
@@ -129,7 +151,7 @@ function dopage(s)
 			end
 		end
 		if match == nil then
-			sendmsg(s, config.text.invalid_answer_expected_choice)
+			M.sendmsg(s, config.text.invalid_answer_expected_choice)
 		else
 			s.input[i.var] = match.value
 			s.input_num = s.input_num + 1
@@ -138,6 +160,26 @@ function dopage(s)
 
 	s.last_input = nil
 	dopage(s)
+end
+
+function savedata(path)
+	local time = os.time(os.date('!*t'))
+	local threshold = 60 * 60 * 24 * 30
+	for id in pairs(states) do
+		if time - states[id].last_msg_time > threshold then
+			states[id] = nil
+		end
+	end
+	if not pl.tablex.deepcompare(states, states_old) then
+		pl.pretty.dump(states, path)
+		states_old = pl.tablex.deepcopy(states)
+	end
+end
+
+function loaddata(path)
+	if pl.path.isfile(path) then
+		states = assert(pl.pretty.read(pl.file.read(path)))
+	end
 end
 
 return M
