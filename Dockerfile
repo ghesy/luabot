@@ -4,5 +4,7 @@ RUN luarocks install luasocket
 RUN luarocks install penlight
 RUN luarocks install luaposix
 RUN luarocks install dkjson
-RUN luarocks install lyaml
-RUN lua /root/bot/bot.lua
+ARG BOTDIR=/root/bot
+ARG BOT=bot.lua
+WORKDIR $BOTDIR
+CMD [ "lua",  "$BOT" ]
