@@ -28,5 +28,13 @@ jobs:
       - name: Upload rockspecs
         run: |
           for spec in ./rockspecs/*.rockspec; do
-            luarocks upload "$spec" --api-key ${{ secrets.LUAROCKS_API_KEY }}
+            localspec=${spec##*/}
+            rockname=${localspec%-*}
+            rockname=${rockname%-*}
+            rockver=${localspec%.*}
+            rockver=${rockver#"${rockname}-"}
+            luarocks download --rockspec "$rockname" "$rockver" &&
+              cmp "$spec" "$localspec" &&
+              continue ||:
+            luarocks upload "$spec" --force --api-key "${{ secrets.LUAROCKS_API_KEY }}"
           done
