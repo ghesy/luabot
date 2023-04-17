@@ -5,6 +5,6 @@ RUN luarocks install penlight
 RUN luarocks install luaposix
 RUN luarocks install dkjson
 ARG BOTDIR=/root/bot
-ARG BOT=bot.lua
 WORKDIR $BOTDIR
-CMD [ "lua",  "$BOT" ]
+ARG BOT=bot.lua
+CMD [ "lua",  "$BOTDIR/$BOT" ]
