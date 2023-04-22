@@ -36,5 +36,5 @@ jobs:
             luarocks download --rockspec "$rockname" "$rockver" &&
               cmp "$spec" "$localspec" &&
               continue ||:
-            luarocks upload "$spec" --force --api-key "${{ secrets.LUAROCKS_API_KEY }}"
+            luarocks upload "$spec" --skip-pack --force --api-key "${{ secrets.LUAROCKS_API_KEY }}"
           done
