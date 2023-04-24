@@ -2,12 +2,12 @@ package = 'luatbot'
 version = '0.2.4-1'
 
 source = {
-	url = 'git+https://github.com/ghesy/luatbot.git',
+	url = 'git+https://github.com/koonix/luatbot.git',
 	tag = 'v' .. version:match('^(.-)-'),
 }
 
 description = {
-	homepage = 'https://github.com/ghesy/luatbot',
+	homepage = 'https://github.com/koonix/luatbot',
 	license = 'Unlicense',
 }
 
